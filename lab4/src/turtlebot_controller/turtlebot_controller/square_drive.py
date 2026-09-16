@@ -7,9 +7,9 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 
-SIDE =    # meters
-V =     # m/s 
-W =       # rad/s 
+SIDE =  1  # meters
+V =  0.1   # m/s 
+W =   0.5    # rad/s 
 
 
 def quaternion_to_yaw(q):
@@ -20,7 +20,7 @@ class SquareDrive(Node):
 
     def __init__(self):
         super().__init__('square_drive')
-
+        self.cmd_pub = self.create_publisher(Twist, 'cmd_vel', 10)
 
         # odom is watched, never used to steer. Do not touch just observe
         self.create_subscription(Odometry, 'odom', self.on_odom, 10)
@@ -35,7 +35,25 @@ class SquareDrive(Node):
 
     def drive(self):
         # TODO: Drive around the square. 
-        raise NotImplementedError
+
+        drive_time = SIDE/V
+        turn_time = (math.pi/2.0)/W
+        for i in range(4):
+            cmd =Twist()
+            cmd.linear.x  = V
+            self.cmd_pub.publish(cmd)
+            self.spin_for(drive_time)
+
+            self.cmd_pub.publish(Twist())
+            self.spin_for(0.2)
+
+            cmd = Twist()
+            cmd.angular.z=W
+            self.cmd_pub.publish(cmd)
+            self.spin_for(turn_time)
+
+            self.cmd_pub.publish(Twist())
+            self.spin_for(0.2)
 
 # -----------------------------------------#
     def on_odom(self, msg):
@@ -72,6 +90,7 @@ def main():
 
     try:
         # TODO
+        node.drive()
     except KeyboardInterrupt:
         pass
     finally:
