@@ -13,8 +13,8 @@ class TfEchoNode(Node):
         super().__init__("tf_echo_node")
 
         # TODO: Create a buffer and listener
-        self.tf_buffer = None
-        self.tf_listener = None
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.target_frame = target_frame
         self.source_frame = source_frame
@@ -37,7 +37,21 @@ class TfEchoNode(Node):
 
     def print_transform(self):
         # YOUR CODE HERE
-        pass
+        try:
+            transform = self.tf_buffer.lookup_transform(self.target_frame, self.source_frame, rclpy.time.Time())
+            translation = transform.transform.translation
+            rotation = transform.transform.rotation
+
+            rotation_matrix = self.quaternion_to_rotation_matrix(rotation.x, rotation.y, rotation.z, rotation.w)
+
+            print("Translation")
+            print(np.array([translation.x, translation.y, translation.z]))
+
+            print("Rotation Matrix")
+            print(rotation_matrix)
+
+        except tf2_ros.TransformException as e:
+            print("Could not transform")
 
 
 def main(args=None):

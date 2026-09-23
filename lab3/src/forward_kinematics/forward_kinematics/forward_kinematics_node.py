@@ -8,7 +8,7 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-
+from forward_kinematics.kin_func_skeleton import forward_kinematics
 JOINT_NAMES = [
     "shoulder_pan_joint",
     "shoulder_lift_joint",
@@ -79,6 +79,15 @@ class ForwardKinematicsNode(Node):
         gst0 = np.eye(4)
 
         # YOUR CODE HERE
+        for q, omega in joint_data:
+            v = np.cross(-omega, q)
+            twist = np.concatenate((v, omega))
+            twists.append(twist)
+
+        twists = np.column_stack(twists)
+
+        gst0[:3, :3] = R
+        gst0[:3, 3] = p
 
         return twists, gst0
 
@@ -86,8 +95,16 @@ class ForwardKinematicsNode(Node):
         """
         Compute g_st(theta) whenever a new JointState message arrives.
         """
+        joint_positions = dict(zip(msg.name, msg.position))
+        theta = np.array([
+            joint_positions[name] for name in JOINT_NAMES
+        ])
 
-        # YOUR CODE HERE
+        # Multiply product of exponentials by initial tool configuration gst0
+        gst = forward_kinematics(self.twists, theta) @ self.gst0
+        
+        print("g_st(theta):")
+        print(gst)
 
 
 def main(args=None):

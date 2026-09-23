@@ -14,6 +14,7 @@ from controller_manager_msgs.srv import SwitchController
 from geometry_msgs.msg import Pose, TransformStamped
 from moveit_msgs.srv import GetCartesianPath
 from tf2_ros import Buffer, TransformException, TransformListener
+from controller_manager_msgs.srv import ListControllers, SwitchController
 
 from straight_line_interface.action import MoveStraight
 
@@ -24,6 +25,12 @@ class StraightLineServer(Node):
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+
+        self._list_cli = self.create_client(
+            ListControllers,
+            '/controller_manager/list_controllers',
+            callback_group=self._cb_group,
+        )
 
         self._switch_cli = self.create_client(
             SwitchController,
@@ -44,7 +51,7 @@ class StraightLineServer(Node):
 
         self._action_server = ActionServer(
             self,
-            MoveStraight
+            MoveStraight,
             'move_straight',
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
@@ -55,11 +62,11 @@ class StraightLineServer(Node):
 
     def goal_callback(self, goal_request):
         self.get_logger().info('Received MoveStraight goal request')
-        return ...
+        return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle: ServerGoalHandle):
         self.get_logger().info('Received cancel')
-        return ...
+        return CancelResponse.ACCEPT
 
     def _lookup_tool0_pose(self) -> Pose:
         """
@@ -68,29 +75,45 @@ class StraightLineServer(Node):
         this can fail!
         """
         # hint: self._tf_buffer.lookup_transform
-        return ...
+        transform = self._tf_buffer.lookup_transform('base_link', 'tool0', rclpy.time.Time())
+        pose = Pose()
+        pose.position.x = transform.transform.translation.x
+        pose.position.y = transform.transform.translation.y
+        pose.position.z = transform.transform.translation.z
+        pose.orientation = transform.transform.rotation
+        return pose
 
     def _ensure_controller(self) -> bool:
         """
-        use self._switch_cli to switch the controller to `scaled_joint_trajectory_controller`.
-        Deactivate any of the following controllers:
-          - `freedrive_mode_controller`
-          - `forward_position_controller`
-          - `forward_velocity_controller`
-        see https://docs.ros.org/en/humble/p/controller_manager_msgs/srv/SwitchController.html
-
-        return a bool indicating success. it should return false if any of these happen:
-          - _switch_cli wait_for_service takes too long
-          - _switch_cli call takes too long
-          - _switch_cli call fails (result.ok is false)
+        Check if `scaled_joint_trajectory_controller` is already active.
+        If not, request a controller switch using BEST_EFFORT strictness.
         """
+        # Step 1: Check if already active
+        if self._list_cli.wait_for_service(timeout_sec=5.0):
+            req_list = ListControllers.Request()
+            fut_list = self._list_cli.call_async(req_list)
+            if self._wait_future(fut_list, timeout_sec=5.0):
+                res_list = fut_list.result()
+                for ctrl in res_list.controller:
+                    if ctrl.name == 'scaled_joint_trajectory_controller' and ctrl.state == 'active':
+                        self.get_logger().info('scaled_joint_trajectory_controller is already active')
+                        return True
+
+        # Step 2: Switch if not active
         if not self._switch_cli.wait_for_service(timeout_sec=5.0):
             self.get_logger().error('switch_controller service unavailable')
             return False
 
         req = SwitchController.Request()
-        # TODO: fill in `req`
-        
+        req.activate_controllers = ['scaled_joint_trajectory_controller']
+        req.deactivate_controllers = [
+            'freedrive_mode_controller',
+            'forward_position_controller',
+            'forward_velocity_controller',
+        ]
+        req.strictness = SwitchController.Request.BEST_EFFORT
+        req.start_asap = True
+
         future = self._switch_cli.call_async(req)
         if not self._wait_future(future, timeout_sec=10.0):
             self.get_logger().error('Controller switch timed out')
@@ -108,16 +131,6 @@ class StraightLineServer(Node):
 
         
     def _plan_cartesian(self, target_pose: Pose, max_step: float):
-        """get the path.
-        call _cart_cli (using the GetCartesianPath service type)
-        if this fails, it will log an error to the logger.
-
-        return type is (trajectory, fraction_planned, error). the
-        `error` value is just the error_code that moveit's planner
-        returns, if we get there.  If something fails unrecoverably
-        before then, we will just return (None, 0.0, -1).
-
-        """
         if not self._cart_cli.wait_for_service(timeout_sec=5.0):
             self.get_logger().error(
                 '/compute_cartesian_path unavailable (is MoveIt running?)'
@@ -130,19 +143,16 @@ class StraightLineServer(Node):
         req.start_state.is_diff = True
         
         req.group_name = 'ur_manipulator'
-
-        # TODO: fill these out!
-        # check the docs: https://docs.ros.org/en/humble/p/moveit_msgs/srv/GetCartesianPath.html
-        req.link_name = ...
-        req.waypoints = ...
-        req.max_step = ...
+        req.link_name = 'tool0'
+        req.waypoints = [target_pose]
+        req.max_step = max_step
         
         req.jump_threshold = 0.0
         req.avoid_collisions = True
-        
+
         fut = self._cart_cli.call_async(req)
         
-        if not self._wait_future(future, timeout_sec=30.0):
+        if not self._wait_future(fut, timeout_sec=30.0):
             self.get_logger().error('Cartesian planning timed out')
             return None, 0.0, -1
 
@@ -177,7 +187,8 @@ class StraightLineServer(Node):
             return False, 'FollowJointTrajectory action server unavailable'
 
         # TODO: construct the correct goal message for the FollowJointTrajectory action.
-        goal = ...
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = traj
         
         send_future = self._exec_ac.send_goal_async(goal)
         if not self._wait_future(send_future, timeout_sec=10.0):
@@ -191,7 +202,13 @@ class StraightLineServer(Node):
         while rclpy.ok() and not result_future.done():
             # TODO: monitor `goal_handle.is_cancel_requested`.
             # if a cancellation was requested, use exec_handle to cancel the goal.
-            ...
+            if goal_handle.is_cancel_requested:
+                cancel_future = exec_handle.cancel_goal_async()
+                if not self._wait_future(cancel_future, timeout_sec=5.0):
+                    return False, 'Timeout trajectory'
+                return False, 'Trajectory exec cancelled'
+
+            time.sleep(0.01)
         
         try:
             result_future.result()
@@ -241,13 +258,19 @@ class StraightLineServer(Node):
             # TODO: handle this issue! what should we do if this
             # lookup fails?  hint: look at how we dealt with a failure
             # of _ensure_controller() above.
-            ...
+            result.success = False
+            result.message = f'Failed to get tool0 pose: {exc}'
+            goal_handle.abort()
+            return result
 
         target_pose = Pose()
         target_pose.position = goal.target.position
         target_pose.orientation = start_pose.orientation
         # TODO: update dist_to_go based on the above information!
-        result.dist_to_go = ...
+        dx = target_pose.position.x - start_pose.position.x
+        dy = target_pose.position.y - start_pose.position.y
+        dz = target_pose.position.z - start_pose.position.z
+        result.dist_to_go = (dx**2 + dy**2 + dz**2) ** 0.5
 
 
         ########## STEP 3 ##########
@@ -278,10 +301,16 @@ class StraightLineServer(Node):
         feedback.planned_fraction = planned_fraction
 
         if traj is None:
-            ... # TODO: handle total planning failure
+            result.success = False
+            result.message = 'Cartesian planning failed'
+            goal_handle.abort()
+            return result
 
         if planned_fraction < 0.999:
-            ... # TODO: handle partial plannnig failure (it got stuck halfway ig)
+            result.success = False
+            result.message = 'Cartesian partially planned'
+            goal_handle.abort()
+            return result
 
         ########## STEP 4 ##########
         # execute the plan!
@@ -298,7 +327,11 @@ class StraightLineServer(Node):
 
         # get end pose so we can return how far we got
         current_pose = self._lookup_tool0_pose()
-        result.dist_to_go = ... # TODO: get distance to target
+        dx = target_pose.position.x - current_pose.position.x
+        dy = target_pose.position.y - current_pose.position.y
+        dz = target_pose.position.z - current_pose.position.z
+        result.dist_to_go = (dx**2 + dy**2 + dz**2) ** 0.5
+        
   
         if not ok:
             result.success = False

@@ -32,7 +32,20 @@ class JointController(Node):
 
     def publish_trajectory(self):
         # YOUR CODE HERE
-        pass
+
+        traj = JointTrajectory()
+        
+        traj.joint_names = self.joint_names
+
+        point = JointTrajectoryPoint()
+        point.positions = self.joint_angles
+        point.velocities =[0.0]*6
+
+        point.time_from_start.sec =5 
+
+        traj.points.append(point)
+        self.publisher.publish(traj)
+        
 
 
 def main(args=None):
