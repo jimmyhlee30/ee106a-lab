@@ -71,14 +71,14 @@ class RealSensePCSubscriber(Node):
         # Filter points between z coords between min_z and max_z and max_y
         # Call the numpy array filtered_points
 
-        source_frame = _______ # TODO: Fill in the source frame based on what you implemented in your static TF broadcaster 
+        source_frame = 'camera_depth_optical_frame' # TODO: Fill in the source frame based on what you implemented in your static TF broadcaster 
         try:
-            tf = self.tf_buffer.lookup_transform(_______, _______, Time()) # TODO: the entire tf lookup params should be filled in
+            tf = self.tf_buffer.lookup_transform(self.target_frame, source_frame, Time()) # TODO: the entire tf lookup params should be filled in
         except TransformException as ex:
             self.get_logger().warn(f'Could not transform {source_frame} to {self.target_frame}: {ex}')
             return
 
-        transformed_cloud = do_transform_cloud(_______, _______) # TODO: look what do_transform_cloud takes in and outputs
+        transformed_cloud = do_transform_cloud(msg, tf) # TODO: look what do_transform_cloud takes in and outputs
 
 
         self.publish_filter_planes(transformed_cloud.header)
@@ -104,8 +104,14 @@ class RealSensePCSubscriber(Node):
 
         # TODO: Create masks based on the specified min, max y and z parameters above in order to filter points
         # TODO (Part 5): the cube is black, so once you have hsv, also only keep points with V <= self.cube_max_v
-        filtered_points = _______
+        mask = ((points_base[:, 2] >= self.min_z) & 
+                (points_base[:, 2] <= self.max_z) &
+                (points_base[:, 1] <= self.max_y))
 
+        if hsv is not None:
+            mask = mask & (hsv[:, 2] <= self.cube_max_v)
+        
+        filtered_points = points_base[mask]
         if filtered_points.size == 0:
             self.get_logger().warn(
                 f'No points after filters: z in [{self.min_z:.3f}, {self.max_z:.3f}] m, y <= {self.max_y:.3f} m'
@@ -119,15 +125,23 @@ class RealSensePCSubscriber(Node):
         self.filtered_points_pub.publish(filtered_cloud)
 
         # TODO: Compute cube position in base_link frame using filtered_points.
-        cube_x = _______
-        cube_y = _______
-
+        cube_x = float(np.median(filtered_points[:, 0]))
+        cube_y = float(np.median(filtered_points[:, 1]))
         # TODO: Estimate how tall the cube is. For the top of the cube, use one of the
         # highest filtered points (a high percentile is less noisy than the max). For the
         # table, use the points (from points_base) that are between TABLE_RING_MIN and
         # TABLE_RING_MAX away from the cube's center in x and y.
-        cube_top = _______
-        table_z = _______
+        cube_top = float(np.percentile(filtered_points[:, 2], 95))
+        
+        dist_xy = np.hypot(points_base[:,0]-cube_x, points_base[:,1] - cube_y)
+        ring_mask = (dist_xy >= TABLE_RING_MIN) & (dist_xy <= TABLE_RING_MAX)
+        ring_points = points_base[ring_mask]
+
+        if len(ring_points) > 0:
+            table_z = float(np.median(ring_points[:,2]))
+        else:   
+            table_z = float(np.min(filtered_points[:, 2]))
+        
 
         cube_height = cube_top - table_z
         cube_z = table_z + cube_height / 2  # middle of the cube
@@ -138,8 +152,11 @@ class RealSensePCSubscriber(Node):
         self.cube_height_pub.publish(Float32(data=cube_height))
 
         # TODO: Publish the cube pose message with the cube position information
-        cube_pose = _______
-
+        cube_pose = PointStamped()
+        cube_pose.header = transformed_cloud.header
+        cube_pose.point.x = cube_x
+        cube_pose.point.y = cube_y
+        cube_pose.point.z = cube_z
         self.cube_pose_pub.publish(cube_pose)
 
     def point_colors_hsv(self, msg):
@@ -156,14 +173,21 @@ class RealSensePCSubscriber(Node):
         # TODO (Part 5): convert rgb to HSV with cv2.cvtColor. cvtColor works on images,
         # so reshape to (N, 1, 3) first and back to (N, 3) after. Careful, these colors
         # are in RGB order, not the BGR order OpenCV usually uses.
-        hsv = None  # replace this
+        hsv = cv2.cvtColor(rgb.reshape(-1, 1, 3), cv2.COLOR_RGB2HSV).reshape(-1, 3)
         return hsv
 
     def find_tape(self, points_base, hsv, header):
         # TODO (Part 5): keep the points whose color is in the tape's HSV range
         # (tape_h_min <= H <= tape_h_max, S >= tape_s_min, V >= tape_v_min).
         # The tape is on the table, so also drop anything above max_z or past max_y.
-        tape_points = _______
+        H, S, V = hsv[:, 0], hsv[:, 1], hsv[:, 2]
+        tape_mask = (
+            (H >= self.tape_h_min) & (H <= self.tape_h_max) &
+            (S >= self.tape_s_min) & (V >= self.tape_v_min) &
+            (points_base[:, 2] <= self.max_z) &
+            (points_base[:, 1] <= self.max_y)
+        )
+        tape_points = points_base[tape_mask]
 
         if len(tape_points) < self.tape_min_points:
             return
@@ -172,7 +196,12 @@ class RealSensePCSubscriber(Node):
 
         # TODO (Part 5): publish the centroid of the tape points on /tape_pose
         # (a PointStamped in base_link, don't forget the header)
-        tape_pose = _______
+        centroid = np.mean(tape_points, axis=0)
+        tape_pose = PointStamped()
+        tape_pose.header = header
+        tape_pose.point.x = float(centroid[0])
+        tape_pose.point.y = float(centroid[1])
+        tape_pose.point.z = float(centroid[2])
         self.tape_pose_pub.publish(tape_pose)
 
     def publish_filter_planes(self, header):
