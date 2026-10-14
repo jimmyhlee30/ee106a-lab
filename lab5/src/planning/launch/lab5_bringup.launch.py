@@ -75,7 +75,12 @@ def generate_launch_description():
         )}],
     )
 
-    ik_planner_node = _______
+    ik_planner_node = Node(
+        package='planning',
+        executable='ik_planner',
+        name='ik_planner',
+        output='screen'
+    )
 
     # -------------------------
     # Global shutdown on any process exit
@@ -97,6 +102,7 @@ def generate_launch_description():
         planning_tf_node,
         moveit_launch,
         planning_scene_obstacles_node,
+        ik_planner_node,
 
         # Global handler (keep at end)
         shutdown_on_any_exit,

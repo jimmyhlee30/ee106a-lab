@@ -81,43 +81,44 @@ class UR7e_CubeGrasp(Node):
             return
 
         self.cube_pose = cube_pose
-        # /cube_pose is the middle of the cube, and /cube_height is how tall it is
+
         x, y, z = cube_pose.point.x, cube_pose.point.y, cube_pose.point.z
         h = self.cube_height
-        self.get_logger().info(f'Cube at ({x:.3f}, {y:.3f}, {z:.3f}), {h * 100:.1f} cm tall')
 
-        # -----------------------------------------------------------
-        # TODO: In the following section you will add joint angles to the job queue.
-        # Entries of the job queue should be of type either JointState, String('toggle_grip') or String('find_tape')
-        # Think about you will leverage the IK planner to get joint configurations for the cube grasping task.
-        # To understand how the queue works, refer to the execute_jobs() function below.
-        # -----------------------------------------------------------
+        self.get_logger().info(
+            f'Cube at ({x:.3f}, {y:.3f}, {z:.3f}), {h * 100:.1f} cm tall'
+        )
 
-        # 1) Move to Pre-Grasp Position (gripper above the cube)
-        '''
-        The fingertips should start PRE_GRASP_CLEARANCE above the top of the cube.
-        Remember the IK target is wrist_3_link, which is GRIPPER_LENGTH above the fingertips.
-        '''
-        ...
-        self.job_queue.append(...)
+        table_z = z - h / 2
+        finger_grasp_z = max(z, table_z + TABLE_CLEARANCE)
+        self.grasp_height = finger_grasp_z - table_z
 
-        # 2) Move to Grasp Position (lower the gripper to the cube)
-        '''
-        Put the fingertips at the middle of the cube (half its height), but never closer
-        than TABLE_CLEARANCE to the table. Save how far above the bottom of the cube the
-        fingertips are in self.grasp_height, you'll need it to put the cube down.
-        '''
-        self.grasp_height = ...
+        pre_grasp_z = z + h / 2 + PRE_GRASP_CLEARANCE + GRIPPER_LENGTH
+        pre_grasp = self.ik_planner.compute_ik(
+            self.joint_state, x, y, pre_grasp_z
+        )
 
-        # 3) Close the gripper. See job_queue entries defined in init above for how to add this action.
-        ...
+        if pre_grasp is None:
+            self.get_logger().error("Failed to compute IK for pre-grasp position")
+            self.cube_pose = None
+            return
 
-        # 4) Move back to Pre-Grasp Position
+        grasp_z = finger_grasp_z + GRIPPER_LENGTH
+        grasp = self.ik_planner.compute_ik(
+            pre_grasp, x, y, grasp_z
+        )
 
-        # 5) Go back to the start pose (self.start_joints) so the camera can see the table again
+        if grasp is None:
+            self.get_logger().error("Failed to compute IK for grasp position")
+            self.cube_pose = None
+            return
 
-        # 6) Look for the tape. plan_place() gets called once we have a fresh /tape_pose
-        ...
+        self.job_queue.append(pre_grasp)
+        self.job_queue.append(grasp)
+        self.job_queue.append('toggle_grip')
+        self.job_queue.append(pre_grasp)
+        self.job_queue.append(self.start_joints)
+        self.job_queue.append('find_tape')
 
         self.execute_jobs()
 
@@ -132,26 +133,24 @@ class UR7e_CubeGrasp(Node):
 
     def plan_place(self, tape_pose):
         x, y = tape_pose.point.x, tape_pose.point.y
-        self.get_logger().info(f'Tape at ({x:.3f}, {y:.3f}, {tape_pose.point.z:.3f})')
+        z = tape_pose.point.z
+        self.get_logger().info(f'Tape at ({x:.3f}, {y:.3f}, {z:.3f})')
 
-        # -----------------------------------------------------------
-        # TODO: Add the jobs to put the cube down on the tape and come back.
-        # The tape is flat on the table, so tape_pose.point.z is the height of the table
-        # there. The fingertips are self.grasp_height above the bottom of the cube, so to
-        # set the cube down, put them that far above the tape, plus TABLE_CLEARANCE so the
-        # cube doesn't get pushed into the table.
-        # -----------------------------------------------------------
+        place_finger_z = z + self.grasp_height + TABLE_CLEARANCE
+        place_z = place_finger_z + GRIPPER_LENGTH
 
-        # 1) Move above the tape (so the bottom of the cube clears the table)
-        ...
+        pre_place_finger_z = place_finger_z + PRE_GRASP_CLEARANCE
+        pre_place_z = pre_place_finger_z + GRIPPER_LENGTH
 
-        # 2) Lower the cube down onto the tape
+        pre_place = self.ik_planner.compute_ik(self.joint_state, x, y, pre_place_z)
 
-        # 3) Open the gripper
+        place = self.ik_planner.compute_ik(self.joint_state, x, y, place_z)
 
-        # 4) Move back up
-
-        # 5) Go back to the start pose
+        self.job_queue.append(pre_place)
+        self.job_queue.append(place)
+        self.job_queue.append("toggle_grip")
+        self.job_queue.append(pre_place)
+        self.job_queue.append(self.start_joints)
 
         self.execute_jobs()
 
