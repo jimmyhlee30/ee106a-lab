@@ -28,11 +28,13 @@ class Features:
 
 def detect_sift(image, K, dist, n_features=4000):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray[:280, :] = 0  # black out rows 0 to 279 before SIFT
 
     # TODO 3.1: make a SIFT detector (at most n_features keypoints) and run
     # detectAndCompute on gray with no mask.
     # https://docs.opencv.org/4.x/da/df5/tutorial_py_sift_intro.html
-    raise NotImplementedError('TODO 3.1')
+    sift = cv2.SIFT_create(nfeatures=n_features)
+    keypoints, descriptors = sift.detectAndCompute(gray, None)
 
     if not keypoints:
         empty = np.zeros((0, 2))
@@ -43,7 +45,7 @@ def detect_sift(image, K, dist, n_features=4000):
     # TODO 3.2: undistort the keypoint positions with cv2.undistortPoints.
     # pass P=K, otherwise you get normalized coordinates back instead of pixels.
     # it takes (N, 1, 2), we want (N, 2) at the end.
-    raise NotImplementedError('TODO 3.2')
+    pixels = cv2.undistortPoints(raw.reshape(-1, 1, 2), K, dist, P=K).reshape(-1, 2)
 
     ij = np.round(raw).astype(int)
     ij[:, 0] = ij[:, 0].clip(0, image.shape[1] - 1)
@@ -59,7 +61,11 @@ def ratio_test(desc_a, desc_b, ratio=0.75):
     # matches for each descriptor (closest first). each one has .queryIdx,
     # .trainIdx and .distance. keep the closest if it's less than ratio times
     # the second closest. (sometimes you only get one back, watch out for that)
-    raise NotImplementedError('TODO 3.3')
+    good = {}
+    for pair in matcher.knnMatch(desc_a, desc_b, k=2):
+        if len(pair) == 2 and pair[0].distance < ratio * pair[1].distance:
+            good[pair[0].queryIdx] = pair[0].trainIdx
+    return good
 
 
 def match(fa, fb, ratio=0.75):
