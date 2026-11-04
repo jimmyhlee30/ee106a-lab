@@ -5,6 +5,7 @@ from geometry_msgs.msg import TransformStamped
 from tf2_ros import StaticTransformBroadcaster
 from scipy.spatial.transform import Rotation as R
 import numpy as np
+<<<<<<< HEAD
 from rclpy.qos import qos_profile_sensor_data
 from cv_bridge import CvBridge
 import numpy as np
@@ -17,6 +18,8 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseArray, Pose, TransformStamped
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from tf2_ros import TransformBroadcaster
+=======
+>>>>>>> 009cd71 (labs 5 and 6)
 
 class ConstantTransformPublisher(Node):
     def __init__(self):
@@ -37,6 +40,7 @@ class ConstantTransformPublisher(Node):
         # TODO: Fill out TransformStamped message
         # ------------------------------------------
 
+<<<<<<< HEAD
         self.transform.header.frame_id = 'wrist_3_link'
         self.transform.child_frame_id = 'camera_depth_optical_frame'
 
@@ -55,6 +59,11 @@ class ConstantTransformPublisher(Node):
         self.transform.transform.rotation.y = float(q[1])
         self.transform.transform.rotation.z = float(q[2])
         self.transform.transform.rotation.w = float(q[3])
+=======
+        # Convert rotation matrix to quaternion (x, y, z, w)
+
+        # Populate TransformStamped
+>>>>>>> 009cd71 (labs 5 and 6)
 
         self.get_logger().info(f"Broadcasting transform:\n{G}\nQuaternion: {q}")
 
@@ -72,6 +81,7 @@ def main():
     node.destroy_node()
     rclpy.shutdown()
 
+<<<<<<< HEAD
 def quaternion_from_matrix(matrix):
     """Return quaternion from rotation matrix.
 
@@ -103,5 +113,7 @@ def quaternion_from_matrix(matrix):
     q *= 0.5 / math.sqrt(t * M[3, 3])
     return q
 
+=======
+>>>>>>> 009cd71 (labs 5 and 6)
 if __name__ == '__main__':
     main()

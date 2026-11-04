@@ -7,6 +7,7 @@
   <maintainer email="danielmunicio360@gmail.com">ee106a-tah</maintainer>
   <license>TODO: License declaration</license>
 
+<<<<<<< HEAD
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>
@@ -14,6 +15,8 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>shape_msgs</exec_depend>
 
+=======
+>>>>>>> 009cd71 (labs 5 and 6)
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

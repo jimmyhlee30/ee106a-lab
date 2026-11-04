@@ -64,6 +64,7 @@ def generate_launch_description():
         }.items(),
     )
 
+<<<<<<< HEAD
     # Add workstation and tool collision geometry to the MoveIt planning scene.
     planning_scene_obstacles_node = Node(
         package='planning',
@@ -81,6 +82,9 @@ def generate_launch_description():
         name='ik_planner',
         output='screen'
     )
+=======
+    ik_planner_node = _______
+>>>>>>> 009cd71 (labs 5 and 6)
 
     # -------------------------
     # Global shutdown on any process exit
@@ -101,8 +105,11 @@ def generate_launch_description():
         perception_node,
         planning_tf_node,
         moveit_launch,
+<<<<<<< HEAD
         planning_scene_obstacles_node,
         ik_planner_node,
+=======
+>>>>>>> 009cd71 (labs 5 and 6)
 
         # Global handler (keep at end)
         shutdown_on_any_exit,

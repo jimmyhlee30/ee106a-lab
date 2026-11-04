@@ -48,6 +48,7 @@ class IKPlanner(Node):
                    qx=0.0, qy=1.0, qz=0.0, qw=0.0): # Think about why the default quaternion is like this. Why is qy=1?
         pose = PoseStamped()
         pose.header.frame_id = 'base_link'
+<<<<<<< HEAD
         #pose.pose = _______ # TODO: There are multiple parts/lines to fill here!
 
         pose.header.stamp = self.get_clock().now().to_msg()
@@ -72,6 +73,13 @@ class IKPlanner(Node):
         ik_req.ik_request.robot_state.joint_state = current_joint_state
         ik_req.ik_request.ik_link_name = 'tool0'
 
+=======
+        pose.pose = _______ # TODO: There are multiple parts/lines to fill here!
+
+
+        ik_req = GetPositionIK.Request()
+        # TODO: Lookup the format for ik request and build ik_req by filling in necessary parameters. What is your end-effector link name?
+>>>>>>> 009cd71 (labs 5 and 6)
         ik_req.ik_request.avoid_collisions = True
         ik_req.ik_request.timeout = Duration(sec=5)
         ik_req.ik_request.group_name = 'ur_manipulator'

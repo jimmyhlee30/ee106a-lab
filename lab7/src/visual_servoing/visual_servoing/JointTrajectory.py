@@ -624,7 +624,7 @@ def main(args=None):
                        help='Type of trajectory: line or circle')
     parser.add_argument('--ar_marker', type=int, default=0,
                        help='AR marker ID to track')
-    parser.add_argument('--total_time', type=float, default=10.0,
+    parser.add_argument('--total_time', type=float, default=5.0,
                        help='Total time for trajectory execution (seconds)')
     parser.add_argument('--circle_radius', type=float, default=0.1,
                        help='Radius for circular trajectory (meters)')

@@ -11,8 +11,12 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+<<<<<<< HEAD
         (('share/' + package_name + '/launch'), glob('launch/*.launch.py')),
         ('share/' + package_name + '/config', glob('config/*.yaml'))
+=======
+        (('share/' + package_name + '/launch'), glob('launch/*.launch.py'))
+>>>>>>> 009cd71 (labs 5 and 6)
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,8 +31,12 @@ setup(
             'tf = planning.static_tf_transform:main',
             'ik = planning.ik:main',
             'transform_cube_pose = planning.transform_cube_pose:main',
+<<<<<<< HEAD
             'gripper = planning.gripper:main',
             'planning_scene_obstacles = planning.planning_scene_obstacles:main'
+=======
+            'gripper = planning.gripper:main'
+>>>>>>> 009cd71 (labs 5 and 6)
         ],
     },
 )
