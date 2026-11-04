@@ -62,9 +62,9 @@ class VisualServo(Node):
 
         self.nominal_dt = 0.1 #we spin the node every 0.1 sec
 
-        self.Kp = 1.0
-        self.Kd = 0 * self.nominal_dt
-        self.Ki = 0 / self.nominal_dt
+        self.Kp = 5.0
+        self.Kd = 2 * self.nominal_dt
+        self.Ki = 1 / self.nominal_dt
 
         self.alpha = 0.8
 
@@ -139,6 +139,8 @@ class VisualServo(Node):
 
     def find_error(self, gd, g):
         """Converts the configuration error from SE(3) to a 6x1 twist and returns it"""
+        # ge_log = logm(gd @ kfs.inverse_SE3(g)).real
+        # return kfs.se3_to_twist(ge_log)
         return kfs.se3_to_twist(kfs.SE3_to_se3(gd @ kfs.inverse_SE3(g)))
     
     def send_velocity(self, joint_velocities):
@@ -403,7 +405,7 @@ def main(args=None):
                        help='Type of trajectory: line or circle')
     parser.add_argument('--ar_marker', type=int, default=0,
                        help='AR marker ID to track')
-    parser.add_argument('--total_time', type=float, default=10.0,
+    parser.add_argument('--total_time', type=float, default=3.0,
                        help='Total time for trajectory execution (seconds)')
     parser.add_argument('--circle_radius', type=float, default=0.1,
                        help='Radius for circular trajectory (meters)')

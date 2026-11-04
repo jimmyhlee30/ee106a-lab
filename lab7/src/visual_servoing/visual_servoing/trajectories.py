@@ -33,7 +33,7 @@ class Trajectory:
         ----------
         time : float
             Time from start of trajectory
-
+to
         Returns
         -------
         np.ndarray
@@ -42,6 +42,8 @@ class Trajectory:
             - (qx, qy, qz, qw) is orientation as quaternion
             - Gripper pointing down corresponds to quaternion [0, 1, 0, 0]
         """
+
+        
 
         raise NotImplementedError
 
